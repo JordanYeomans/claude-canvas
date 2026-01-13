@@ -1,0 +1,248 @@
+#!/bin/bash
+# Session Status CLI
+# Usage: ss <command> [args...]
+
+set -e
+
+SKILL_DIR="$HOME/.claude/skills/session-status/scripts"
+SESSIONS_DIR="/tmp/ss-sessions"
+CANVAS_DIR="/Users/jordanyeomans/Documents/repos_jy/claude-canvas/canvas"
+
+# Get current tmux pane ID
+get_pane_id() {
+    tmux display-message -p '#{pane_id}' 2>/dev/null || echo ""
+}
+
+# Get session ID for current pane
+get_session_id() {
+    local pane_id=$(get_pane_id)
+    if [ -z "$pane_id" ]; then
+        echo "Error: Not in a tmux session" >&2
+        exit 1
+    fi
+
+    local session_file="$SESSIONS_DIR/$pane_id"
+    if [ -f "$session_file" ]; then
+        cat "$session_file"
+    else
+        echo ""
+    fi
+}
+
+# Require session ID (exit if not initialized)
+require_session() {
+    local sid=$(get_session_id)
+    if [ -z "$sid" ]; then
+        echo "Error: No session initialized. Run 'ss init' first." >&2
+        exit 1
+    fi
+    echo "$sid"
+}
+
+# Commands
+cmd_init() {
+    mkdir -p "$SESSIONS_DIR"
+
+    local pane_id=$(get_pane_id)
+    if [ -z "$pane_id" ]; then
+        echo "Error: Not in a tmux session" >&2
+        exit 1
+    fi
+
+    # Generate random 6-char ID
+    local sid=$(cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 6)
+    local state_dir="/tmp/session-status-${sid}"
+
+    # Create state directory
+    mkdir -p "$state_dir"
+    echo $(($(date +%s) * 1000)) > "$state_dir/start_time"
+    echo "$sid" > "$state_dir/session_id"
+    pwd > "$state_dir/working_dir"
+
+    # Initialize empty state files
+    echo "" > "$state_dir/summary.txt"
+    echo "" > "$state_dir/goal.txt"
+    echo "[]" > "$state_dir/done.json"
+    echo "[]" > "$state_dir/issues.json"
+    echo "[]" > "$state_dir/todos.json"
+    echo '{"status": "working", "message": "Initializing..."}' > "$state_dir/status.json"
+
+    # Store pane -> session mapping
+    echo "$sid" > "$SESSIONS_DIR/$pane_id"
+
+    # Spawn triple-vertical layout
+    cd "$CANVAS_DIR"
+    bun run src/cli.ts spawn workspace --layout triple-vertical --id "$sid"
+
+    echo ""
+    echo "SESSION_ID=$sid"
+}
+
+cmd_summary() {
+    local sid=$(require_session)
+    echo "$*" > "/tmp/session-status-${sid}/summary.txt"
+    "$SKILL_DIR/refresh.py" "$sid"
+}
+
+cmd_goal() {
+    local sid=$(require_session)
+    echo "$*" > "/tmp/session-status-${sid}/goal.txt"
+    "$SKILL_DIR/refresh.py" "$sid"
+}
+
+cmd_done() {
+    local sid=$(require_session)
+    echo "$*" > "/tmp/session-status-${sid}/done.json"
+    "$SKILL_DIR/refresh.py" "$sid"
+}
+
+cmd_issues() {
+    local sid=$(require_session)
+    echo "$*" > "/tmp/session-status-${sid}/issues.json"
+    "$SKILL_DIR/refresh.py" "$sid"
+}
+
+cmd_todos() {
+    local sid=$(require_session)
+    echo "$*" > "/tmp/session-status-${sid}/todos.json"
+    "$SKILL_DIR/refresh.py" "$sid"
+}
+
+cmd_status() {
+    local sid=$(require_session)
+    local status="$1"
+    shift
+    local message="$*"
+
+    # Validate status
+    case "$status" in
+        working|waiting|error|complete) ;;
+        *)
+            echo "Error: Invalid status '$status'. Must be: working, waiting, error, complete" >&2
+            exit 1
+            ;;
+    esac
+
+    echo "{\"status\": \"$status\", \"message\": \"$message\"}" > "/tmp/session-status-${sid}/status.json"
+    "$SKILL_DIR/refresh.py" "$sid"
+}
+
+cmd_refresh() {
+    local sid=$(require_session)
+    "$SKILL_DIR/refresh.py" "$sid"
+}
+
+cmd_show() {
+    local sid=$(require_session)
+    "$SKILL_DIR/read-state.sh" "$sid"
+}
+
+cmd_id() {
+    local sid=$(get_session_id)
+    if [ -z "$sid" ]; then
+        echo "No session initialized"
+        exit 1
+    fi
+    echo "$sid"
+}
+
+cmd_daemon_start() {
+    local interval="${1:-5}"
+    local script_dir="$(cd "$(dirname "$0")" && pwd)"
+    nohup "$script_dir/ss-daemon" "$interval" > /tmp/ss-daemon.log 2>&1 &
+    sleep 0.5
+    if [ -f /tmp/ss-daemon.pid ]; then
+        echo "Daemon started (PID $(cat /tmp/ss-daemon.pid), interval ${interval}s)"
+    else
+        echo "Failed to start daemon. Check /tmp/ss-daemon.log"
+    fi
+}
+
+cmd_daemon_stop() {
+    if [ -f /tmp/ss-daemon.pid ]; then
+        local pid=$(cat /tmp/ss-daemon.pid)
+        if kill -0 "$pid" 2>/dev/null; then
+            kill "$pid"
+            rm -f /tmp/ss-daemon.pid
+            echo "Daemon stopped (PID $pid)"
+        else
+            rm -f /tmp/ss-daemon.pid
+            echo "Daemon not running (stale PID file removed)"
+        fi
+    else
+        echo "Daemon not running"
+    fi
+}
+
+cmd_daemon_status() {
+    if [ -f /tmp/ss-daemon.pid ]; then
+        local pid=$(cat /tmp/ss-daemon.pid)
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "Daemon running (PID $pid)"
+            return 0
+        fi
+    fi
+    echo "Daemon not running"
+    return 1
+}
+
+cmd_help() {
+    cat << 'EOF'
+Session Status CLI
+
+Usage: ss <command> [args...]
+
+Commands:
+  init                     Initialize new session (spawns panels)
+  summary <text>           Set executive summary
+  goal <text>              Set goal
+  done <json>              Set done items: '[{"text":"..."}]'
+  issues <json>            Set issues: '[{"text":"...","fixed":true}]'
+  todos <json>             Set todos: '[{"text":"...","status":"pending"}]'
+  status <state> [msg]     Set status: working|waiting|error|complete
+  refresh                  Force refresh panels
+  show                     Show current state
+  id                       Show current session ID
+
+Daemon (auto-refresh git data):
+  daemon start [interval]  Start background refresh (default: 5s)
+  daemon stop              Stop background refresh
+  daemon status            Check if daemon is running
+
+Examples:
+  ss init
+  ss daemon start          # Start auto-refresh
+  ss summary "Building authentication feature with OAuth2 support"
+  ss goal "Add Google and GitHub login"
+  ss status working "Reading config files..."
+  ss todos '[{"text":"Setup OAuth","status":"done"},{"text":"Add endpoints","status":"in_progress"}]'
+EOF
+}
+
+# Main
+case "${1:-help}" in
+    init)    cmd_init ;;
+    summary) shift; cmd_summary "$@" ;;
+    goal)    shift; cmd_goal "$@" ;;
+    done)    shift; cmd_done "$@" ;;
+    issues)  shift; cmd_issues "$@" ;;
+    todos)   shift; cmd_todos "$@" ;;
+    status)  shift; cmd_status "$@" ;;
+    refresh) cmd_refresh ;;
+    show)    cmd_show ;;
+    id)      cmd_id ;;
+    daemon)
+        case "${2:-status}" in
+            start)  cmd_daemon_start "$3" ;;
+            stop)   cmd_daemon_stop ;;
+            status) cmd_daemon_status ;;
+            *)      echo "Usage: ss daemon start|stop|status" >&2; exit 1 ;;
+        esac
+        ;;
+    help|--help|-h) cmd_help ;;
+    *)
+        echo "Unknown command: $1" >&2
+        echo "Run 'ss help' for usage" >&2
+        exit 1
+        ;;
+esac

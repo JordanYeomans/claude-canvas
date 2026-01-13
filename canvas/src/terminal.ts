@@ -92,6 +92,10 @@ async function spawnTripleVerticalLayout(
     throw new Error("Failed to get current pane ID");
   }
 
+  // Set tmux pane borders to gray for this window
+  spawnSync("tmux", ["set-option", "-w", "pane-border-style", "fg=color240"]);
+  spawnSync("tmux", ["set-option", "-w", "pane-active-border-style", "fg=color240"]);
+
   // Build commands for top and bottom canvases
   const topId = `${id}-top`;
   const bottomId = `${id}-bottom`;
@@ -157,6 +161,9 @@ async function spawnTripleVerticalLayout(
   if (!bottomSuccess) {
     throw new Error("Failed to spawn bottom pane");
   }
+
+  // Ensure focus stays on the main (middle) pane for mouse scroll
+  spawnSync("tmux", ["select-pane", "-t", mainPaneId]);
 
   return { method: "tmux-triple-vertical" };
 }

@@ -1,0 +1,5 @@
+#!/bin/bash
+# Canvas Middle - focus back on middle pane (Claude)
+# Use -l to go to last active pane, or directional if that fails
+tmux select-pane -t {top}
+tmux select-pane -D

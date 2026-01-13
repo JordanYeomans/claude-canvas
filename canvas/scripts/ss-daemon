@@ -1,0 +1,54 @@
+#!/bin/bash
+# Session Status Daemon - refreshes all active sessions periodically
+# Usage: ss-daemon [interval_seconds]
+# Default interval: 5 seconds
+
+INTERVAL="${1:-5}"
+SESSIONS_DIR="/tmp/ss-sessions"
+SKILL_DIR="$HOME/.claude/skills/session-status/scripts"
+PID_FILE="/tmp/ss-daemon.pid"
+
+# Check if already running
+if [ -f "$PID_FILE" ]; then
+    OLD_PID=$(cat "$PID_FILE")
+    if kill -0 "$OLD_PID" 2>/dev/null; then
+        echo "Daemon already running (PID $OLD_PID)"
+        exit 0
+    fi
+fi
+
+# Save PID
+echo $$ > "$PID_FILE"
+
+cleanup() {
+    rm -f "$PID_FILE"
+    exit 0
+}
+
+trap cleanup SIGINT SIGTERM
+
+echo "Session Status Daemon started (PID $$, interval ${INTERVAL}s)"
+
+while true; do
+    # Check each session
+    if [ -d "$SESSIONS_DIR" ]; then
+        for pane_file in "$SESSIONS_DIR"/*; do
+            [ -f "$pane_file" ] || continue
+
+            pane_id=$(basename "$pane_file")
+            session_id=$(cat "$pane_file")
+
+            # Check if pane still exists
+            if tmux display-message -t "$pane_id" -p '#{pane_id}' &>/dev/null; then
+                # Pane exists - refresh (only git data, silently)
+                "$SKILL_DIR/refresh.py" "$session_id" 2>/dev/null
+            else
+                # Pane gone - cleanup session
+                rm -f "$pane_file"
+                rm -rf "/tmp/session-status-${session_id}"
+            fi
+        done
+    fi
+
+    sleep "$INTERVAL"
+done

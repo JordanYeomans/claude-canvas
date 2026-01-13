@@ -1,0 +1,3 @@
+#!/bin/bash
+# Canvas Bottom - focus on bottom pane
+tmux select-pane -t {bottom}

@@ -1,0 +1,7 @@
+#!/bin/bash
+# Canvas Show - unzoom to show top/bottom panels
+# (same command - it's a toggle, but we check if zoomed first)
+ZOOMED=$(tmux display-message -p '#{window_zoomed_flag}')
+if [ "$ZOOMED" = "1" ]; then
+    tmux resize-pane -Z
+fi

@@ -1,0 +1,3 @@
+#!/bin/bash
+# Canvas Hide - zoom current pane to hide top/bottom panels
+tmux resize-pane -Z

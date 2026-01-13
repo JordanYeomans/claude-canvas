@@ -1,0 +1,3 @@
+#!/bin/bash
+# Canvas Top - focus on top pane
+tmux select-pane -t {top}
