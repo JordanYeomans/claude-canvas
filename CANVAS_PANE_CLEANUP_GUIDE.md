@@ -52,7 +52,7 @@ This means multiple Claude Code sessions can run simultaneously without interfer
 1. Start Claude Code in tmux
 2. Spawn triple-vertical layout:
    ```bash
-   bun run src/cli.ts spawn workspace --layout triple-vertical --id test
+   c3
    ```
 3. Exit Claude Code (`/exit` or Ctrl+D)
 4. Verify both canvas panes close automatically

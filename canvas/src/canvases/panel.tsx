@@ -3,9 +3,15 @@ import { Box, Text, useInput, useApp, useStdout } from "ink";
 import { spawnSync } from "child_process";
 import { useIPCServer } from "./calendar/hooks/use-ipc-server";
 
+export interface StyledLine {
+  text: string;
+  color?: "green" | "magenta" | "red" | "white" | "cyan" | "yellow" | "gray";
+}
+
 export interface PanelConfig {
   title?: string;
   content?: string;
+  lines?: StyledLine[];  // Array of styled lines (takes precedence over content)
   borderColor?: string;
   titleColor?: string;
   watchPaneId?: string;  // If set, panel auto-exits when this pane closes
@@ -92,11 +98,14 @@ export function Panel({ id, config: initialConfig, socketPath, scenario = "displ
 
   const title = liveConfig?.title || "Panel";
   const content = liveConfig?.content || "";
+  const lines = liveConfig?.lines;
   const borderColor = liveConfig?.borderColor || "cyan";
   const titleColor = liveConfig?.titleColor || "cyan";
 
-  // Split content into lines
-  const contentLines = content.split("\n");
+  // Use lines array if provided, otherwise split content string
+  const styledLines: StyledLine[] = lines
+    ? lines
+    : content.split("\n").map(text => ({ text, color: "white" as const }));
   const innerWidth = Math.max(1, termWidth - 4);
   const contentHeight = Math.max(1, termHeight - 4); // Account for border and title
 
@@ -117,9 +126,9 @@ export function Panel({ id, config: initialConfig, socketPath, scenario = "displ
 
       {/* Content */}
       <Box flexDirection="column" flexGrow={1} paddingX={1}>
-        {contentLines.slice(0, contentHeight).map((line, i) => (
-          <Text key={i} color="white">
-            {line.slice(0, innerWidth)}
+        {styledLines.slice(0, contentHeight).map((line, i) => (
+          <Text key={i} color={line.color || "white"}>
+            {line.text.slice(0, innerWidth)}
           </Text>
         ))}
       </Box>
