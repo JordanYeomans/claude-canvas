@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Box, Text, useInput, useApp, useStdout } from "ink";
+import { spawnSync } from "child_process";
 import { useIPCServer } from "./calendar/hooks/use-ipc-server";
 
 export interface PanelConfig {
@@ -7,6 +8,7 @@ export interface PanelConfig {
   content?: string;
   borderColor?: string;
   titleColor?: string;
+  watchPaneId?: string;  // If set, panel auto-exits when this pane closes
 }
 
 interface Props {
@@ -55,6 +57,28 @@ export function Panel({ id, config: initialConfig, socketPath, scenario = "displ
       stdout?.off("resize", updateDimensions);
     };
   }, [stdout]);
+
+  // Watch for parent pane exit - auto-close when main pane closes
+  useEffect(() => {
+    const watchPaneId = liveConfig?.watchPaneId;
+    if (!watchPaneId) return;
+
+    const checkPaneExists = () => {
+      // Check if the watched pane still exists
+      const result = spawnSync("tmux", ["display-message", "-t", watchPaneId, "-p", "#{pane_id}"]);
+      const output = result.stdout?.toString().trim();
+
+      // Pane is gone if command fails or returns different/empty pane ID
+      if (result.status !== 0 || output !== watchPaneId) {
+        exit();
+      }
+    };
+
+    // Check every 2000ms (reduced frequency since SessionEnd hook handles fast exit)
+    const interval = setInterval(checkPaneExists, 2000);
+
+    return () => clearInterval(interval);
+  }, [liveConfig?.watchPaneId, exit]);
 
   // Handle keyboard input
   useInput((input, key) => {

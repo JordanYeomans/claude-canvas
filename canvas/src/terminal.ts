@@ -65,9 +65,18 @@ export async function spawnCanvas(
   throw new Error("Failed to spawn tmux pane");
 }
 
-// Files to track the triple-vertical pane IDs
-const TOP_PANE_FILE = "/tmp/claude-canvas-top-pane-id";
-const BOTTOM_PANE_FILE = "/tmp/claude-canvas-bottom-pane-id";
+// Session-specific pane ID files (keyed by main pane ID for multi-session support)
+const getTopPaneFile = (mainPaneId: string) => `/tmp/claude-canvas-${mainPaneId}-top.pane`;
+const getBottomPaneFile = (mainPaneId: string) => `/tmp/claude-canvas-${mainPaneId}-bottom.pane`;
+
+// Get the current pane ID (the pane running Claude Code)
+function getCurrentPaneId(): string | null {
+  const result = spawnSync("tmux", ["display-message", "-p", "#{pane_id}"]);
+  if (result.status === 0) {
+    return result.stdout?.toString().trim() || null;
+  }
+  return null;
+}
 
 async function spawnTripleVerticalLayout(
   id: string,
@@ -77,13 +86,21 @@ async function spawnTripleVerticalLayout(
   const scriptDir = import.meta.dir.replace("/src", "");
   const runScript = `${scriptDir}/run-canvas.sh`;
 
+  // Get the current (main) pane ID before spawning
+  const mainPaneId = getCurrentPaneId();
+  if (!mainPaneId) {
+    throw new Error("Failed to get current pane ID");
+  }
+
   // Build commands for top and bottom canvases
   const topId = `${id}-top`;
   const bottomId = `${id}-bottom`;
 
   // Parse config and create separate configs for top and bottom
+  // Include watchPaneId so panels auto-close when main pane exits
   let topConfig = {
     title: "Terminal",
+    watchPaneId: mainPaneId,
     content: [
       "┌─────────────────────────────────────────────┐",
       "│  Terminal Session - System Monitor         │",
@@ -101,6 +118,7 @@ async function spawnTripleVerticalLayout(
 
   let bottomConfig = {
     title: "Output",
+    watchPaneId: mainPaneId,
     content: [
       "┌─────────────────────────────────────────────┐",
       "│  Output Panel - Build Status               │",
@@ -129,13 +147,13 @@ async function spawnTripleVerticalLayout(
   const bottomCommand = `${runScript} show panel --id ${bottomId} --config "$(cat ${bottomConfigFile})" --socket ${bottomSocketPath}`;
 
   // Spawn top pane (above current)
-  const topSuccess = await createPaneAbove(topCommand, TOP_PANE_FILE);
+  const topSuccess = await createPaneAbove(topCommand, getTopPaneFile(mainPaneId));
   if (!topSuccess) {
     throw new Error("Failed to spawn top pane");
   }
 
   // Spawn bottom pane (below current)
-  const bottomSuccess = await createPaneBelow(bottomCommand, BOTTOM_PANE_FILE);
+  const bottomSuccess = await createPaneBelow(bottomCommand, getBottomPaneFile(mainPaneId));
   if (!bottomSuccess) {
     throw new Error("Failed to spawn bottom pane");
   }
