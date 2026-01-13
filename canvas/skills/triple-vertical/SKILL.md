@@ -14,14 +14,21 @@ Spawn a three-section vertical workspace layout with tmux panes **above and belo
 ## Quick Reference
 
 ```bash
-# Spawn triple-vertical layout with ID for updates
-bun run src/cli.ts spawn workspace --layout triple-vertical --id myworkspace
+# Quick spawn (recommended) - auto-generates workspace ID
+c3
 
+# Or with custom ID
+c3 myworkspace
+```
+
+The `c3` command outputs the workspace ID and update commands. Use the panel IDs to update:
+
+```bash
 # Update top panel
-bun run src/cli.ts update myworkspace-top --config '{"title":"Top","content":"Hello"}'
+bun run src/cli.ts update <id>-top --config '{"title":"Top","content":"Hello"}'
 
 # Update bottom panel
-bun run src/cli.ts update myworkspace-bottom --config '{"title":"Bottom","content":"World"}'
+bun run src/cli.ts update <id>-bottom --config '{"title":"Bottom","content":"World"}'
 ```
 
 | Resource | Value |
@@ -32,16 +39,19 @@ bun run src/cli.ts update myworkspace-bottom --config '{"title":"Bottom","conten
 | Bottom Socket | `/tmp/canvas-{id}-bottom.sock` |
 | Pane ID Files | `/tmp/claude-canvas-{pane_id}-top.pane`, `/tmp/claude-canvas-{pane_id}-bottom.pane` |
 
-## IMPORTANT: Correct Command
+## IMPORTANT: Use c3 Command
 
-**DO NOT use:** `spawn triple-vertical` (this spawns a single canvas to the right)
+**Recommended:** Use the `c3` command which handles everything automatically:
+```bash
+c3
+```
 
-**USE THIS COMMAND:**
+**Alternative (manual):**
 ```bash
 bun run src/cli.ts spawn workspace --layout triple-vertical --id <your-id>
 ```
 
-The `--layout triple-vertical` flag is what creates panes above and below. Always include `--id` if you need to update panels later.
+**DO NOT use:** `spawn triple-vertical` alone (this spawns a single canvas to the right, not above/below).
 
 ## Layout
 

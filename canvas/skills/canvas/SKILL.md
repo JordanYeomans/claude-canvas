@@ -69,29 +69,23 @@ bun run src/cli.ts spawn [kind] --scenario [name] --config '[json]'
 
 ## Triple-Vertical Layout
 
-**IMPORTANT:** To spawn panes above and below Claude Code, use `--layout triple-vertical`:
-
+**Quick spawn using `c3` command:**
 ```bash
-# Always include --id if you need to update panels later
-bun run src/cli.ts spawn workspace --layout triple-vertical --id myworkspace
+c3              # Auto-generates workspace ID (e.g., ws-a1b2c3d4)
+c3 myworkspace  # Custom ID
 ```
 
-**DO NOT use** `spawn triple-vertical` alone - that spawns a single canvas to the right.
-
-This creates:
-- **Top pane** (25%): Terminal/System Monitor → ID: `myworkspace-top`
+The `c3` command outputs the workspace ID and panel IDs. This creates:
+- **Top pane** (25%): Terminal/System Monitor → ID: `{id}-top`
 - **Middle** (50%): Claude Code stays in focus
-- **Bottom pane** (25%): Output/Build Status → ID: `myworkspace-bottom`
+- **Bottom pane** (25%): Output/Build Status → ID: `{id}-bottom`
 
-**Auto-close**: Panels automatically close when the main Claude Code pane exits.
+**Auto-close**: Panels automatically close when Claude Code exits.
 
-**Quick update examples:**
+**Update panels using the IDs from c3 output:**
 ```bash
-# Update top panel
-bun run src/cli.ts update myworkspace-top --config '{"title":"Build","content":"Running..."}'
-
-# Update bottom panel
-bun run src/cli.ts update myworkspace-bottom --config '{"title":"Tests","content":"✓ Passed"}'
+bun run src/cli.ts update {id}-top --config '{"title":"Build","content":"Running..."}'
+bun run src/cli.ts update {id}-bottom --config '{"title":"Tests","content":"✓ Passed"}'
 ```
 
 ## IPC Communication

@@ -1,0 +1,44 @@
+#!/bin/bash
+# c3 - Quick spawn triple-vertical canvas layout
+# Usage: c3 [id]
+# If no ID provided, generates a short UUID
+
+# Resolve symlink to get actual script location
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [ -L "$SCRIPT_PATH" ]; do
+    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+    SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+    [[ $SCRIPT_PATH != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
+done
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+CANVAS_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Generate short UUID if no ID provided
+if [ -n "$1" ]; then
+    ID="$1"
+else
+    ID="ws-$(uuidgen | cut -c1-8 | tr '[:upper:]' '[:lower:]')"
+fi
+
+# Spawn the triple-vertical layout
+bun run "$CANVAS_DIR/src/cli.ts" spawn workspace --layout triple-vertical --id "$ID" 2>/dev/null
+
+# Output the details Claude needs
+cat <<EOF
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Triple-Vertical Layout Spawned
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Workspace ID: $ID
+
+  Panel IDs:
+    Top:    ${ID}-top
+    Bottom: ${ID}-bottom
+
+  Update commands:
+    bun run $CANVAS_DIR/src/cli.ts update ${ID}-top --config '{"title":"...","content":"..."}'
+    bun run $CANVAS_DIR/src/cli.ts update ${ID}-bottom --config '{"title":"...","content":"..."}'
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EOF
